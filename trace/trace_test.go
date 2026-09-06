@@ -9,6 +9,8 @@ import (
 	"github.com/specscore/codegrapher/store"
 )
 
+// specscore:verifies https://specscore.org/github.com/code-grapher/codegrapher/spec/features/specscore-source-traceability#ac:canonical-directive-target-resolves
+// specscore:verifies https://specscore.org/github.com/code-grapher/codegrapher/spec/features/specscore-source-traceability#ac:non-test-verification-is-not-accepted
 func TestBuildAttachesTypedLinksAndRejectsNonExecutableVerification(t *testing.T) {
 	root := t.TempDir()
 	featureDir := filepath.Join(root, "spec", "features", "checkout")
@@ -40,14 +42,10 @@ The total is visible.
 		t.Fatal(err)
 	}
 	source := filepath.Join(root, "checkout.go")
-	if err := os.WriteFile(source, []byte(`package checkout
-
-// specscore:implements feature/checkout#REQ:totals
-func Calculate() {}
-
-// specscore:verifies feature/checkout#AC:total-visible
-func Helper() {}
-`), 0o644); err != nil {
+	sourceContent := "package checkout\n\n// specscore:" + "implements feature/checkout#REQ:totals\n" +
+		"func Calculate() {}\n\n// specscore:" + "verifies feature/checkout#AC:total-visible\n" +
+		"func Helper() {}\n"
+	if err := os.WriteFile(source, []byte(sourceContent), 0o644); err != nil {
 		t.Fatal(err)
 	}
 
@@ -76,6 +74,9 @@ func Helper() {}
 	for _, edge := range edges {
 		if edge.Accepted && edge.Relation == "implements" {
 			implements++
+			if edge.TargetID != "spec:requirement:spec/features/checkout#req:totals" {
+				t.Fatalf("implements target = %q, want canonical REQ node", edge.TargetID)
+			}
 		}
 		if edge.Accepted && edge.Relation == "verifies" {
 			verifies++
@@ -90,8 +91,14 @@ func Helper() {}
 	if len(nodes) < 4 {
 		t.Fatalf("nodes = %d, want feature, req, ac, and symbols", len(nodes))
 	}
+	for _, node := range nodes {
+		if node.Kind == "unresolved" {
+			t.Fatalf("live typed target remained unresolved: %+v", node)
+		}
+	}
 }
 
+// specscore:verifies https://specscore.org/github.com/code-grapher/codegrapher/spec/features/specscore-source-traceability#ac:canonical-directive-target-resolves
 func TestIndexAndQuerySeparatesImplementationVerificationAndCoverage(t *testing.T) {
 	root := t.TempDir()
 	featureDir := filepath.Join(root, "spec", "features", "checkout")
@@ -101,7 +108,8 @@ func TestIndexAndQuerySeparatesImplementationVerificationAndCoverage(t *testing.
 	if err := os.WriteFile(filepath.Join(featureDir, "README.md"), []byte("---\nformat: https://specscore.md/feature-specification\nstatus: Implementing\n---\n# Feature: Checkout\n\n## Behavior\n\n#### REQ: totals\n\nTotals are calculated.\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(filepath.Join(root, "checkout_test.go"), []byte("package checkout\n\n// specscore:verifies feature/checkout#REQ:totals\nfunc TestTotals() {}\n"), 0o644); err != nil {
+	testContent := "package checkout\n\n// specscore:" + "verifies feature/checkout#REQ:totals\nfunc TestTotals() {}\n"
+	if err := os.WriteFile(filepath.Join(root, "checkout_test.go"), []byte(testContent), 0o644); err != nil {
 		t.Fatal(err)
 	}
 	st, err := store.Initialize(filepath.Join(root, "source.db"))
@@ -133,6 +141,9 @@ func TestIndexAndQuerySeparatesImplementationVerificationAndCoverage(t *testing.
 	}
 	if len(result.Implements) != 0 || len(result.Verifies) != 1 {
 		t.Fatalf("links = implements %d verifies %d", len(result.Implements), len(result.Verifies))
+	}
+	if result.Target.Kind != string(model.KindRequirement) || result.Target.Path != "spec/features/checkout/README.md" {
+		t.Fatalf("query target = %+v, want indexed requirement", result.Target)
 	}
 	if result.Verifies[0].Coverage == nil || !result.Verifies[0].Coverage.Available {
 		t.Fatalf("verification coverage = %+v", result.Verifies[0].Coverage)

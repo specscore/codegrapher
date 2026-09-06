@@ -37,7 +37,7 @@ func Build(root string, sourceStores []*store.Store) ([]store.TraceNode, []store
 	nodes := make([]store.TraceNode, 0)
 	targetIDs := make(map[string]string)
 	for _, feature := range features {
-		featureRef := normalizeRef(feature.ID)
+		featureRef := canonicalFeatureRef(feature.ID)
 		featureID := specNodeID("feature", featureRef)
 		addTraceNode(&nodes, targetIDs, store.TraceNode{
 			ID: featureID, Kind: string(model.KindFeature), Reference: featureRef,
@@ -250,7 +250,9 @@ func Query(reference string, projection *store.Store, sourceStores []*store.Stor
 
 func addSpecChild(root string, nodes *[]store.TraceNode, refs map[string]string, featureRef, id, kind, title string, source ssTrace.SourceRange) {
 	ref := normalizeRef(id)
-	if !strings.Contains(ref, "#") {
+	if base, fragment, found := strings.Cut(ref, "#"); found {
+		ref = canonicalFeatureRef(base) + "#" + fragment
+	} else {
 		ref = featureRef + "#" + ref
 	}
 	addTraceNode(nodes, refs, store.TraceNode{ID: specNodeID(kind, ref), Kind: kind, Reference: ref, Title: title, Path: relPath(root, source.Path), StartLine: source.StartLine, StartColumn: source.StartColumn, EndLine: source.EndLine, EndColumn: source.EndColumn})
@@ -353,6 +355,14 @@ func normalizeRef(ref string) string {
 		return strings.ToLower(ref[:i]) + "#" + strings.ToLower(ref[i+1:])
 	}
 	return strings.ToLower(ref)
+}
+
+// specscore:implements https://specscore.org/github.com/code-grapher/codegrapher/spec/features/specscore-source-traceability#req:canonical-feature-target-identity
+func canonicalFeatureRef(id string) string {
+	id = normalizeRef(id)
+	id = strings.TrimPrefix(id, "feature/")
+	id = strings.TrimPrefix(id, "spec/features/")
+	return "spec/features/" + id
 }
 
 func specNodeID(kind, ref string) string { return "spec:" + kind + ":" + ref }
