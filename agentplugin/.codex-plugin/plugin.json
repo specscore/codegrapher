@@ -1,0 +1,28 @@
+{
+  "name": "codegrapher",
+  "version": "0.1.0",
+  "description": "CodeGrapher workflows for codebase exploration and impact analysis",
+  "author": {
+    "name": "CodeGrapher",
+    "url": "https://github.com/code-grapher/codegrapher"
+  },
+  "homepage": "https://github.com/code-grapher/codegrapher",
+  "repository": "https://github.com/code-grapher/codegrapher",
+  "license": "Apache-2.0",
+  "keywords": ["code", "graph", "analysis", "impact"],
+  "skills": "./skills/",
+  "interface": {
+    "displayName": "CodeGrapher",
+    "shortDescription": "Explore code relationships with CodeGrapher.",
+    "longDescription": "Use CodeGrapher to index a codebase, trace callers and callees, and assess change impact.",
+    "developerName": "CodeGrapher",
+    "category": "Developer Tools",
+    "capabilities": ["Read"],
+    "websiteURL": "https://github.com/code-grapher/codegrapher",
+    "defaultPrompt": [
+      "Index this repository with CodeGrapher.",
+      "Show the impact of changing this symbol.",
+      "Find callers and callees for this function."
+    ]
+  }
+}
