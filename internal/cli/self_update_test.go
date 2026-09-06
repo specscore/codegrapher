@@ -49,7 +49,9 @@ func TestSyncSkillsAfterSelfUpdateUsesVerifiedBinaryAndKeepsJSONClean(t *testing
 		t.Fatal(err)
 	}
 	cmd := newSelfUpdateCmd()
-	cmd.Flags().Set("format", "json")
+	if err := cmd.Flags().Set("format", "json"); err != nil {
+		t.Fatal(err)
+	}
 	var stdout, stderr bytes.Buffer
 	cmd.SetOut(&stdout)
 	cmd.SetErr(&stderr)
