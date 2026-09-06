@@ -7,6 +7,10 @@ import (
 	"slices"
 	"testing"
 	"time"
+
+	"github.com/specscore/codegrapher/model"
+	"github.com/specscore/codegrapher/scope"
+	"github.com/specscore/codegrapher/trace"
 )
 
 // newSyncProject creates a temp project with src/index.ts, runs Init, and
@@ -152,6 +156,72 @@ func TestSyncNoChanges(t *testing.T) {
 	}
 	if res.FilesChecked == 0 {
 		t.Error("FilesChecked = 0, want > 0")
+	}
+}
+
+// specscore:verifies https://specscore.org/github.com/code-grapher/codegrapher/spec/features/specscore-source-traceability#ac:sync-refreshes-feature-and-source-links
+func TestSyncRefreshesCanonicalSpecScoreTrace(t *testing.T) {
+	dir := t.TempDir()
+	featurePath := filepath.Join(dir, "spec", "features", "checkout", "README.md")
+	writeFile(t, featurePath, `---
+format: https://specscore.md/feature-specification
+status: Implementing
+---
+
+# Feature: Checkout
+
+**Status:** Implementing
+
+## Behavior
+
+#### REQ: initial
+
+Initial behavior.
+
+## Acceptance Criteria
+
+Not defined yet.
+`)
+	sourcePath := filepath.Join(dir, "checkout.go")
+	writeFile(t, sourcePath, "package checkout\n\nfunc Calculate() {}\n")
+	idx, result, err := Init(dir, Options{})
+	if err != nil || !result.Success {
+		t.Fatalf("Init: %v %+v", err, result)
+	}
+	t.Cleanup(func() { _ = idx.Close() })
+
+	touchPast(t, sourcePath)
+	writeFile(t, sourcePath, "package checkout\n\n// specscore:implements feature/checkout#req:totals\nfunc Calculate() {}\n")
+	writeFile(t, featurePath, `---
+format: https://specscore.md/feature-specification
+status: Implementing
+---
+
+# Feature: Checkout
+
+**Status:** Implementing
+
+## Behavior
+
+#### REQ: totals
+
+Totals are calculated.
+
+## Acceptance Criteria
+
+Not defined yet.
+`)
+	idx.Sync(Options{})
+	projection, err := idx.reg.Store(scope.Scope{Language: "trace", Version: traceScopeVersion})
+	if err != nil {
+		t.Fatal(err)
+	}
+	got, err := trace.Query("feature/checkout#req:totals", projection, idx.Stores(), dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.Target.Kind != string(model.KindRequirement) || len(got.Implements) != 1 {
+		t.Fatalf("trace after sync = target %+v, implements %d", got.Target, len(got.Implements))
 	}
 }
 
